@@ -3,6 +3,15 @@
 import "brownianbridge"
 module bridge = mk_brownian_bridge f64
 
+import "../../diku-dk/cpprandom/random"
+module rand_dist = normal_distribution f64 pcg32
+type rng = rand_dist.engine.rng
+local let std_moments = { mean = 0.0f64, stddev = 1.0f64}
+
+import "../../diku-dk/statistics/statistics"
+module stats = mk_statistics f64
+
+
 -- | Two step tests
 
 -- ==
@@ -94,4 +103,35 @@ entry test_brownian_bridge5_std_dev [n] (times: [n]f64) = (bridge.build times).s
 
 -- Bridge transform tests
 
--- TODO
+-- ==
+-- entry: test_distribution
+-- input { [1.0, 2.0, 5.0, 10.0] 1000000i64 }
+-- output { [[0.0, 1.0], [0.0, 2.0], [0.0, 5.0], [0.0, 10.0]] }
+
+entry test_distribution [m] (times: [m]f64) (n: i64): [m][2]f64 =
+  let bridge_params = bridge.build times
+
+  let generate_path (start_rng: rng): ([m]f64, rng) =
+    let rngs = rand_dist.engine.split_rng m start_rng
+    let (rngs, xs) = unzip (map (rand_dist.rand std_moments) rngs)
+    let end_rng = rand_dist.engine.join_rng rngs
+    let bridged = bridge.transform bridge_params xs
+    in (xs, end_rng)
+
+  let rng_state = rand_dist.engine.rng_from_seed [123]
+
+  let paths = replicate n (replicate m 0.0f64)
+  let (paths, _) = loop (paths, rng_state) = (paths, rng_state) for i < n do
+    let (path, rng_state) = generate_path rng_state
+    in (paths with [i] = path, rng_state)
+
+  let round_dp (dp: i8) (x: f64): f64 =
+    let scale: f64 = 10.0 ** f64.i8 dp
+    in f64.round(x * scale) / scale
+
+  -- somehow mean totally broken, even without bridge..
+  in transpose paths |> map (\sims ->
+    let mu = stats.mean sims
+    let sigma = stats.variance sims |> round_dp 3
+    in [mu, sigma]
+  )
