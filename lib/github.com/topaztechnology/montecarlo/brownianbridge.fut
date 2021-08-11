@@ -11,7 +11,7 @@ local let first_index_where [n] (f: i64 -> bool) (start_index: i64) (xs: [n]i64)
     in (next_x, next_i)
   in i
 
-module mk_brownian_bridge(T: real) = {
+module mk_brownian_bridge(T: float) = {
   type t = T.t
 
   local let zero = (T.f32 0.0)
