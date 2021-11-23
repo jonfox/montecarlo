@@ -1,21 +1,34 @@
 -- | Browian bridge implementation
 -- a pinned Brownian motion as described in Mark Joshi's More Mathematical Finance, pp 175-183
 
--- Find the first index in a sequence that matches a predicate given a starting index
-local let first_index_where [n] (f: i64 -> bool) (start_index: i64) (xs: [n]i64): i64 =
-  let i = start_index
-  let x = xs[i]
-  let (_, i) = loop (x, i) while !(f x) && i < n do
-    let next_i = i + 1
-    let next_x = if next_i == n then -1 else xs[next_i]
-    in (next_x, next_i)
-  in i
+module type brownian_bridge = {
+  -- | The type of scalars that the functions operate on.
+  type t
 
-module mk_brownian_bridge(T: float) = {
+  -- | the Brownian bridge parameters
+  type BridgeParams [n] = {
+    left_index: [n]i64,
+    right_index: [n]i64,
+    bridge_index: [n]i64,
+    left_weight: [n]t,
+    right_weight: [n]t,
+    std_dev: [n]t
+  }
+
+  -- | Builds the bridge parameters
+  val build [n]: (times: [n]t) -> BridgeParams [n]
+
+  -- | Transforms a set of variates using the bridge parameters
+  val transform [n]: BridgeParams [n] -> [n]t -> [n]t
+}
+
+module mk_brownian_bridge(T: float): brownian_bridge with t = T.t = {
   type t = T.t
 
   local let zero = (T.f32 0.0)
   local let one = (T.f32 1.0)
+
+  import "utils"
 
   type BridgeParams [n] = {
     left_index: [n]i64,
@@ -26,7 +39,6 @@ module mk_brownian_bridge(T: float) = {
     std_dev: [n]t
   }
 
-  -- Build the bridge parameters which can be used to transform a variate sequence
   let build [n] (times: [n]t): BridgeParams [n] =
     let (left_index, right_index, bridge_index, left_weight, right_weight, std_dev, _, _) =
       let left_index = replicate n 0
